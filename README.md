@@ -1,4 +1,4 @@
-# Zotero RAG — Chat with your Zotero library
+# Noldo — Chat with your Zotero librarian
 
 A fully local RAG (retrieval-augmented generation) pipeline that lets you ask
 natural-language questions about a Zotero library of scientific papers, and get
@@ -250,7 +250,7 @@ zotero-rag/
 ```
 
 ## Notes / gotchas
-
+- **Claude.ai** - This project have been entierely generate with claude.ai.
 - **torch CPU-only** — must be pinned ≤ 2.8.x (see "Rebuilding").
 - **Ollama** — must listen on `0.0.0.0` (systemd override) and store its models on
   `/data` (the 54 GB eMMC `/` fills up quickly). Already configured.
