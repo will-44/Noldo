@@ -1,0 +1,35 @@
+services:
+  zotero-rag:
+    build: .
+    image: zotero-rag:latest
+    container_name: zotero-rag
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    volumes:
+      - /data/zotero/files:/zotero_files:ro
+      - /data/zotero-rag/data:/app/data
+      - /data/zotero-rag/config.yaml:/app/config.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # Interface web ChatPDF (même image, réutilise le package zotero_rag)
+  zotero-webapp:
+    image: zotero-rag:latest
+    container_name: zotero-webapp
+    restart: unless-stopped
+    depends_on:
+      - zotero-rag
+    command: python main.py webserve
+    ports:
+      - "7862:7862"
+    volumes:
+      - /data/zotero/files:/zotero_files:ro
+      - /data/zotero-rag/data:/app/data
+      - /data/zotero-rag/config.yaml:/app/config.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - PYTHONUNBUFFERED=1

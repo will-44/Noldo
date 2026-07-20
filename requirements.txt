@@ -1,0 +1,25 @@
+# torch/torchvision épinglés en CPU-only : sur aarch64 ces wheels (~97 Mo) ne tirent
+# AUCUNE lib nvidia-* (gated platform_machine=="x86_64"). Docling tourne sur CPU ici.
+# Ne PAS monter au-delà de 2.8.x : torch >=2.9 ship des wheels aarch64 CUDA (~10 Go).
+torch==2.8.0
+torchvision==0.23.0
+
+llama-index>=0.10.0
+llama-index-llms-ollama
+llama-index-embeddings-ollama
+llama-index-vector-stores-chroma
+llama-index-retrievers-bm25
+sentence-transformers
+ollama>=0.6.0
+chromadb>=0.5.0
+docling>=2.0.0
+pymupdf>=1.24.0
+pyzotero>=1.5.0
+gradio>=4.0.0
+click>=8.0.0
+pyyaml>=6.0
+kubernetes>=29.0.0
+urllib3>=2.0.0
+# Interface web ChatPDF (service FastAPI, port 7862)
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0

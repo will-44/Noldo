@@ -1,0 +1,31 @@
+zotero:
+  mode: "web"
+  web_api_key: "pEg120lGGrV1Trbtd08QH2JY"
+  library_id: "12014782"
+  library_type: "user"
+  collection_key: ""              # Vide = toute la bibliothèque
+  local_files_dir: "/zotero_files" # Monté depuis /data/zotero/files dans Docker
+
+ollama:
+  base_url: "http://host.docker.internal:11434"
+  llm_model: "gpt-oss:20b"         # 20B (quantifié MXFP4) — testé pour vitesse vs mistral-small3.2
+  embed_model: "nomic-embed-text"
+  timeout: 300                     # marge pour cold start + génération
+
+rag:
+  chunk_size: 512
+  chunk_overlap: 64
+  similarity_top_k: 5
+  persist_dir: "/app/data/chroma_db"
+  pdf_cache_dir: "/app/data/pdfs"
+  highlighted_dir: "/app/data/highlighted"
+
+ui:
+  port: 7860
+  share: false
+
+agent:
+  max_steps: 6            # borne la boucle ReAct (~1-1,5 min à ce débit, voir plan Lot 1)
+
+semantic_scholar:
+  api_key: ""              # optionnel — sinon pool anonyme (limite 429 possible) ; ou env S2_API_KEY

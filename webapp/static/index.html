@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zotero Chat</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- Fond cliquable pour fermer les tiroirs rail/viewer sur petit écran -->
+  <div id="backdrop"></div>
+
+  <!-- ── RAIL GAUCHE : conversations + bibliothèque ── -->
+  <aside id="left-rail">
+    <header id="rail-header">
+      <h1><span class="icon-slot" data-icon="library"></span> Zotero Chat</h1>
+      <button id="close-rail-btn" class="icon-btn drawer-only" title="Fermer"><span class="icon-slot" data-icon="x"></span></button>
+    </header>
+    <button id="new-conversation-btn" class="rail-new-btn">
+      <span class="icon-slot" data-icon="plus"></span> Nouvelle conversation
+    </button>
+    <div id="rail-tabs">
+      <button class="rail-tab active" data-tab="conversations-view">Conversations</button>
+      <button class="rail-tab" data-tab="library-view">Bibliothèque</button>
+    </div>
+
+    <div id="conversations-view" class="rail-view">
+      <div id="conv-list"></div>
+    </div>
+
+    <div id="library-view" class="rail-view" hidden>
+      <input id="search-box" type="search" placeholder="Rechercher un article…" autocomplete="off">
+      <div id="doc-list"></div>
+    </div>
+
+    <footer id="rail-footer">
+      <button id="sync-btn" title="Synchroniser avec Zotero (indexer les nouveaux articles)">
+        <span class="icon-slot" data-icon="refresh-cw"></span> <span id="sync-label">Synchroniser Zotero</span>
+      </button>
+      <p id="doc-count">Chargement…</p>
+    </footer>
+  </aside>
+
+  <!-- ── CHAT (panneau principal) ── -->
+  <main id="chat-panel">
+    <header id="chat-header">
+      <button id="open-rail-btn" class="icon-btn drawer-only" title="Menu"><span class="icon-slot" data-icon="menu"></span></button>
+      <h2 id="chat-title">Nouvelle conversation</h2>
+      <button id="export-conversation-btn" class="icon-btn" title="Exporter la conversation (Markdown)" hidden><span class="icon-slot" data-icon="download"></span></button>
+      <button id="open-viewer-btn" class="icon-btn drawer-only" title="Article" hidden><span class="icon-slot" data-icon="file-text"></span></button>
+    </header>
+    <div id="messages">
+      <div class="msg assistant">
+        <div class="bubble">Bonjour ! Posez une question sur votre bibliothèque, ou ouvrez un article pour l'interroger spécifiquement.</div>
+      </div>
+    </div>
+    <div id="chat-input-area">
+      <label id="scope-toggle" class="checkbox-row" hidden>
+        <input type="checkbox" id="scope-lock">
+        <span>Limiter à l'article ouvert</span>
+      </label>
+      <div id="chat-form">
+        <input id="question-input" type="text" placeholder="Votre question…" autocomplete="off">
+        <button id="send-btn" title="Envoyer"><span class="icon-slot" data-icon="send"></span></button>
+      </div>
+      <p id="filter-hint"><span class="icon-slot" data-icon="globe"></span> Recherche dans toute la bibliothèque</p>
+    </div>
+  </main>
+
+  <!-- ── VIEWER PDF (droite, escamotable) ── -->
+  <aside id="viewer-panel">
+    <div id="viewer-toolbar">
+      <span id="viewer-title">Sélectionnez un article</span>
+      <div id="viewer-nav" hidden>
+        <button id="prev-page" class="nav-btn" title="Page précédente"><span class="icon-slot" data-icon="chevron-left"></span></button>
+        <span id="page-info">—</span>
+        <button id="next-page" class="nav-btn" title="Page suivante"><span class="icon-slot" data-icon="chevron-right"></span></button>
+      </div>
+      <button id="close-viewer-btn" class="icon-btn" title="Fermer"><span class="icon-slot" data-icon="x"></span></button>
+    </div>
+    <div id="viewer-scroll">
+      <div id="viewer-placeholder">
+        <span class="icon-slot placeholder-icon" data-icon="file-text"></span>
+        <p>Sélectionnez un article pour l'afficher</p>
+      </div>
+      <div id="page-container" hidden>
+        <canvas id="pdf-canvas"></canvas>
+        <div id="highlight-layer"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Script classique (non-module) : s'exécute avant app.js (module, différé), garantit
+       window.DOMPurify disponible dès la première utilisation de renderMarkdown(). -->
+  <script src="/static/vendor/purify.min.js"></script>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
