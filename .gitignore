@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Runtime data: PDFs, ChromaDB, conversation history, downloaded models/caches
+data/
+
+# Secrets / local overrides
+*.key
+.env

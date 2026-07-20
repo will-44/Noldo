@@ -55,7 +55,10 @@ async function init() {
   el("new-conversation-btn").addEventListener("click", newConversation);
   el("close-viewer-btn").addEventListener("click", closeViewer);
   el("export-conversation-btn").addEventListener("click", exportConversation);
-  el("sync-btn").addEventListener("click", syncZotero);
+  el("sync-btn").addEventListener("click", startSync);
+  // Reprend l'affichage d'une sync déjà en cours (lancée avant de fermer l'onglet, ou depuis
+  // un autre appareil) — no-op silencieux si aucun job n'est en cours ou déjà terminé.
+  pollSyncStatus();
 
   el("rail-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".rail-tab");
@@ -637,53 +640,68 @@ async function exportConversation() {
 }
 
 // ── Synchronisation Zotero (indexation incrémentale depuis l'UI) ─────────
-async function syncZotero() {
-  const btn = el("sync-btn");
-  const label = el("sync-label");
-  btn.disabled = true;
-  btn.classList.add("spinning");
-  label.textContent = "Synchronisation…";
+// Le job tourne côté serveur, découplé de cette page (voir webapp/sync_job.py) : fermer
+// l'onglet ne l'arrête pas. On poll son état plutôt que de streamer en SSE, précisément pour
+// pouvoir s'y rebrancher — y compris au chargement de la page si une sync était déjà en cours
+// (lancée avant fermeture de l'onglet, ou depuis un autre appareil).
+let syncPolling = false;
 
+async function startSync() {
   try {
-    const res = await fetch("/api/index/sync", { method: "POST" });
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const frames = buf.split("\n\n");
-      buf = frames.pop();
-      for (const frame of frames) {
-        const dataLine = frame.split("\n").find((l) => l.startsWith("data: "));
-        if (!dataLine) continue;
-        await handleSyncEvent(JSON.parse(dataLine.slice(6)), label);
-      }
-    }
+    await fetch("/api/index/sync", { method: "POST" });
   } catch (e) {
-    label.textContent = `Erreur : ${e.message}`;
+    el("sync-label").textContent = `Erreur : ${e.message}`;
+    return;
+  }
+  pollSyncStatus();
+}
+
+async function pollSyncStatus() {
+  if (syncPolling) return; // un cycle de polling tourne déjà, pas besoin d'en relancer un 2e
+  syncPolling = true;
+  try {
+    while (true) {
+      let snap;
+      try {
+        snap = await fetch("/api/index/sync").then((r) => r.json());
+      } catch {
+        return; // page en cours de déchargement ou serveur injoignable : abandonne sans erreur
+      }
+      renderSyncStatus(snap);
+      if (snap.status !== "running") {
+        if (snap.status === "done" && snap.added > 0) {
+          allDocs = await fetch("/api/docs").then((r) => r.json());
+          el("doc-count").textContent = `${allDocs.length} articles indexés`;
+          renderList(filteredDocs());
+        }
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
   } finally {
-    btn.disabled = false;
-    btn.classList.remove("spinning");
-    setTimeout(() => { label.textContent = "Synchroniser Zotero"; }, 4000);
+    syncPolling = false;
   }
 }
 
-async function handleSyncEvent(event, label) {
-  if (event.type === "progress") {
-    label.textContent = `${event.current}/${event.total} — ${event.msg}`;
-  } else if (event.type === "done") {
-    label.textContent = event.added > 0 ? `${event.added} article(s) ajouté(s)` : "À jour";
-    if (event.added > 0) {
-      allDocs = await fetch("/api/docs").then((r) => r.json());
-      el("doc-count").textContent = `${allDocs.length} articles indexés`;
-      renderList(filteredDocs());
-    }
-  } else if (event.type === "error") {
-    label.textContent = `Erreur : ${event.message}`;
+function renderSyncStatus(snap) {
+  const btn = el("sync-btn");
+  const label = el("sync-label");
+  if (snap.status === "running") {
+    btn.disabled = true;
+    btn.classList.add("spinning");
+    label.textContent = snap.total ? `${snap.current}/${snap.total} — ${snap.message}` : "Démarrage…";
+    return;
   }
+  btn.disabled = false;
+  btn.classList.remove("spinning");
+  if (snap.status === "done") {
+    label.textContent = snap.added > 0 ? `${snap.added} article(s) ajouté(s)` : "À jour";
+  } else if (snap.status === "error") {
+    label.textContent = `Erreur : ${snap.error}`;
+  } else {
+    return; // "idle" : rien à afficher, laisse le libellé par défaut du HTML
+  }
+  setTimeout(() => { label.textContent = "Synchroniser Zotero"; }, 4000);
 }
 
 // ── Rendu Markdown (réponse de l'agent) ──────────────────────────────────

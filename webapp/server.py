@@ -4,8 +4,6 @@ Réutilise le package zotero_rag (RAGRetriever, RAGAgent, RAGIndexer) ; ne modif
 pipeline d'indexation existant. Lancé via `python main.py webserve`.
 """
 import json
-import queue
-import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -16,11 +14,9 @@ from pydantic import BaseModel
 from zotero_rag.agent import RAGAgent
 from zotero_rag.indexer import RAGIndexer
 from zotero_rag.retriever import MAX_HISTORY_TURNS, RAGRetriever
-from zotero_rag.utils import get_logger
 
 from .store import ConversationStore
-
-logger = get_logger(__name__)
+from .sync_job import SyncJob
 
 STATIC_DIR = Path(__file__).parent / "static"
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
@@ -51,6 +47,7 @@ def create_app(config: dict) -> FastAPI:
     agent = RAGAgent(config, retriever)
     pdf_dir = Path(config["rag"]["pdf_cache_dir"])
     store = ConversationStore(Path(config["rag"]["persist_dir"]).parent / "conversations.db")
+    sync_job = SyncJob()
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -146,48 +143,30 @@ def create_app(config: dict) -> FastAPI:
         return StreamingResponse(event_stream(), media_type="text/event-stream", headers=SSE_HEADERS)
 
     # ── Synchronisation Zotero (indexation incrémentale depuis l'UI) ────────
+    # Job en mémoire (SyncJob), découplé de toute requête HTTP : survit à la fermeture de
+    # l'onglet qui l'a lancé, et son état reste interrogeable (GET) après coup — voir
+    # webapp/sync_job.py pour le pourquoi (l'ancien mécanisme SSE ne permettait ni l'un ni
+    # l'autre, et laissait deux syncs concurrentes se chevaucher sans garde-fou).
+
+    def _run_sync(progress_cb) -> int:
+        indexer = RAGIndexer(config)
+        added = indexer.update_index(progress_cb=progress_cb)
+        if added > 0:
+            # Le retriever hybride garde son BM25Retriever figé sur le contenu chargé au
+            # démarrage : sans reconstruction, les nouveaux chunks resteraient invisibles à
+            # search_corpus/scan_corpus jusqu'au prochain redémarrage du conteneur. Fait ici
+            # (dans le job, pas dans une réponse HTTP) pour que ça se produise même si personne
+            # n'est connecté pour le voir.
+            retriever.fused_retriever = retriever._build_fused_retriever()
+        return added
 
     @app.post("/api/index/sync")
-    def sync_index():
-        def event_stream():
-            q: queue.Queue = queue.Queue()
-            SENTINEL = object()
-            result: dict = {}
+    def start_sync():
+        sync_job.start(_run_sync)
+        return sync_job.snapshot()
 
-            def progress_cb(current, total, msg):
-                q.put({"type": "progress", "current": current, "total": total, "msg": msg})
-
-            def run():
-                try:
-                    indexer = RAGIndexer(config)
-                    result["added"] = indexer.update_index(progress_cb=progress_cb)
-                except Exception as e:
-                    logger.error(f"Index sync failed: {e}")
-                    result["error"] = str(e)
-                finally:
-                    q.put(SENTINEL)
-
-            threading.Thread(target=run, daemon=True).start()
-
-            while True:
-                item = q.get()
-                if item is SENTINEL:
-                    break
-                yield _sse(item)
-
-            if "error" in result:
-                yield _sse({"type": "error", "message": result["error"]})
-                return
-
-            added = result.get("added", 0)
-            if added > 0:
-                # Le retriever hybride garde son BM25Retriever figé sur le contenu chargé au
-                # démarrage : sans reconstruction, les nouveaux chunks resteraient invisibles
-                # à search_corpus/scan_corpus jusqu'au prochain redémarrage du conteneur.
-                retriever.fused_retriever = retriever._build_fused_retriever()
-
-            yield _sse({"type": "done", "added": added})
-
-        return StreamingResponse(event_stream(), media_type="text/event-stream", headers=SSE_HEADERS)
+    @app.get("/api/index/sync")
+    def get_sync_status():
+        return sync_job.snapshot()
 
     return app
